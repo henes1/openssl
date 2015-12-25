@@ -1,0 +1,44 @@
+8
+
+dir
+0
+https://github.com/henes1/openssl.git/trunk/patches
+https://github.com/henes1/openssl.git
+add
+
+
+
+
+
+
+
+svn:special svn:externals svn:needs-lock
+
+0004-reject-weak-dh-groups.diff
+file
+
+
+
+add
+
+0002-disable-insecure-cypher-suites.diff
+file
+
+
+
+add
+
+0001-megapatch.diff
+file
+
+
+
+add
+
+
+
+
+
+has-props
+has-prop-mods
+

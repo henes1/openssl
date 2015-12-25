@@ -1,0 +1,382 @@
+diff -ruN openssl-1.0.1f.orig/apps/apps.c openssl-1.0.1f/apps/apps.c
+--- openssl-1.0.1f.orig/apps/apps.c	2014-01-06 14:47:42.000000000 +0100
++++ openssl-1.0.1f/apps/apps.c	2014-01-08 22:11:06.000000000 +0100
+@@ -2941,9 +2941,10 @@
+     return (ret);
+ }
+ 
+-#elif defined(OPENSSL_SYSTEM_VMS)
++#elif defined(OPENSSL_SYSTEM_VMS) || defined(__MORPHOS__)
+ # include <time.h>
+-# include <times.h>
++//# include <times.h>
++#undef __TMS
+ 
+ double app_tminterval(int stop, int usertime)
+ {
+diff -ruN openssl-1.0.1f.orig/apps/Makefile openssl-1.0.1f/apps/Makefile
+--- openssl-1.0.1f.orig/apps/Makefile	2014-01-06 15:36:07.000000000 +0100
++++ openssl-1.0.1f/apps/Makefile	2014-01-08 22:11:06.000000000 +0100
+@@ -4,9 +4,9 @@
+ 
+ DIR=		apps
+ TOP=		..
+-CC=		cc
++CC=		ppc-morphos-gcc
+ INCLUDES=	-I$(TOP) -I../include $(KRB5_INCLUDES)
+-CFLAG=		-g -static
++CFLAG=		-noixemul -static -D__MORPHOS_SHAREDLIBS -D_NO_PPCINLINE
+ MAKEFILE=	Makefile
+ PERL=		perl
+ RM=		rm -f
+@@ -27,7 +27,7 @@
+ DLIBCRYPTO=../libcrypto.a
+ DLIBSSL=../libssl.a
+ LIBCRYPTO=-L.. -lcrypto
+-LIBSSL=-L.. -lssl
++LIBSSL=-L.. -lssl -noixemul
+ 
+ PROGRAM= openssl
+ 
+diff -ruN openssl-1.0.1f.orig/apps/speed.c openssl-1.0.1f/apps/speed.c
+--- openssl-1.0.1f.orig/apps/speed.c	2014-01-06 14:47:42.000000000 +0100
++++ openssl-1.0.1f/apps/speed.c	2014-01-08 22:11:06.000000000 +0100
+@@ -209,8 +209,10 @@
+ #  define Camellia_set_key        private_Camellia_set_key
+ # endif
+ 
++#undef SIGALRM
++#undef HAVE_FORK
+ # ifndef HAVE_FORK
+-#  if defined(OPENSSL_SYS_VMS) || defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_MACINTOSH_CLASSIC) || defined(OPENSSL_SYS_OS2) || defined(OPENSSL_SYS_NETWARE)
++#  if defined(OPENSSL_SYS_VMS) || defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_MACINTOSH_CLASSIC) || defined(OPENSSL_SYS_OS2) || defined(OPENSSL_SYS_NETWARE) || defined(__MORPHOS__)
+ #   define HAVE_FORK 0
+ #  else
+ #   define HAVE_FORK 1
+diff -ruN openssl-1.0.1f.orig/crypto/aes/asm/aes-ppc.pl openssl-1.0.1f/crypto/aes/asm/aes-ppc.pl
+--- openssl-1.0.1f.orig/crypto/aes/asm/aes-ppc.pl     2014-01-06 14:47:42.000000000 +0100
++++ openssl-1.0.1f/crypto/aes/asm/aes-ppc.pl	2014-01-08 22:11:06.000000000 +0100
+@@ -107,7 +107,7 @@
+ $mask1b=$Tbl3;
+ 
+ $code.=<<___;
+-.machine	"any"
++.section        ".text"
+ .text
+ 
+ .align	7
+diff -ruN openssl-1.0.1f.orig/crypto/bn/asm/ppc.pl openssl-1.0.1f/crypto/bn/asm/ppc.pl
+--- openssl-1.0.1f.orig/crypto/bn/asm/ppc.pl	2014-01-06 14:47:42.000000000 +0100
++++ openssl-1.0.1f/crypto/bn/asm/ppc.pl	2014-01-08 22:11:06.000000000 +0100
+@@ -254,7 +254,7 @@
+ 	
+ # .text section
+ 	
+-	.machine	"any"
++    .section        ".text"
+ 
+ #
+ #	NOTE:	The following label name should be changed to
+diff -ruN openssl-1.0.1f.orig/crypto/ppccpuid.pl openssl-1.0.1f/crypto/ppccpuid.pl
+--- openssl-1.0.1f.orig/crypto/ppccpuid.pl	2014-01-06 14:47:42.000000000 +0100
++++ openssl-1.0.1f/crypto/ppccpuid.pl	2014-01-08 22:11:06.000000000 +0100
+@@ -20,7 +20,7 @@
+ }
+ 
+ $code=<<___;
+-.machine	"any"
++.section        ".text"
+ .text
+ 
+ .globl	.OPENSSL_ppc64_probe
+diff -ruN openssl-1.0.1f.orig/crypto/rand/rand_egd.c openssl-1.0.1f/crypto/rand/rand_egd.c
+--- openssl-1.0.1f.orig/crypto/rand/rand_egd.c	2014-01-06 14:47:42.000000000 +0100
++++ openssl-1.0.1f/crypto/rand/rand_egd.c	2014-01-08 22:11:06.000000000 +0100
+@@ -58,6 +58,12 @@
+ #include <openssl/rand.h>
+ #include <openssl/buffer.h>
+ 
++#if defined (__MORPHOS__) && defined(__libnix__)
++#include <proto/socket.h>
++#define close(s) CloseSocket(s)
++#endif
++
++
+ /*-
+  * Query the EGD <URL: http://www.lothar.com/tech/crypto/>.
+  *
+diff -ruN openssl-1.0.1f.orig/crypto/rand/rand_unix.c openssl-1.0.1f/crypto/rand/rand_unix.c
+--- openssl-1.0.1f.orig/crypto/rand/rand_unix.c	2014-01-06 14:47:42.000000000 +0100
++++ openssl-1.0.1f/crypto/rand/rand_unix.c	2014-01-08 22:11:06.000000000 +0100
+@@ -233,6 +233,79 @@
+ 
+     return 1;
+ }
++#elif defined (__MORPHOS__) && defined(__libnix__)
++#undef _NO_PPCINLINE
++#include <proto/random.h>
++#include <proto/exec.h>
++#include <exec/execbase.h>
++#include <exec/system.h>
++#include <exec/tasks.h>
++
++static __inline void GetCurrentTB(APTR TimeBase)
++{
++   register unsigned long hi = 0, lo = 0;
++
++   /* NOTE: Buggy on purpose, it's not important to get high/low bits in sync for random entropy (in fact, it makes it more random. ;) ) */
++
++   __asm volatile ("mftbu %1\n\t"
++                   "mftb  %2\n\t"
++                   "stw %1, 0(%0)\n\t"
++                   "stw %2, 4(%0)"
++                   :
++                   : "b" (TimeBase), "r" (hi), "r" (lo)
++                   : "cc");
++}
++
++int RAND_poll(void)
++{
++   struct Library *RandomBase;
++   u_int32_t i, buf[ENTROPY_NEEDED/sizeof(u_int32_t)];
++   static const u_int32_t attrids[] = {SYSTEMINFOTYPE_UPTIMETICKS, SYSTEMINFOTYPE_LASTSECTICKS, SYSTEMINFOTYPE_RECENTTICKS, SYSTEMINFOTYPE_CPUTIME, SYSTEMINFOTYPE_LASTSECCPUTIME, SYSTEMINFOTYPE_RECENTCPUTIME, SYSTEMINFOTYPE_VOLUNTARYCSW, SYSTEMINFOTYPE_INVOLUNTARYCSW, SYSTEMINFOTYPE_LASTSECVOLUNTARYCSW, SYSTEMINFOTYPE_LASTSECINVOLUNTARYCSW, SYSTEMINFOTYPE_LOADAVG1, SYSTEMINFOTYPE_LOADAVG2, SYSTEMINFOTYPE_LOADAVG3, SYSTEMINFOTYPE_TASKSCREATED, SYSTEMINFOTYPE_TASKSFINISHED, SYSTEMINFOTYPE_TASKSRUNNING, SYSTEMINFOTYPE_TASKSSLEEPING};
++
++   if ((RandomBase = OpenLibrary("random.library", 1)))
++   {
++	   for (i = 0; i < ENTROPY_NEEDED/sizeof(u_int32_t); i++)
++		   buf[i] = Random();
++
++	   RAND_add(buf, sizeof(buf), ENTROPY_NEEDED);
++
++	   CloseLibrary(RandomBase);
++   }
++   else	   /* No random.library? Phooey! */
++   {
++#warning "Without random.library our entropy is next-to-nil, we should really use a better PRNG here, but I'm too lazy ATM..."
++	   u_int32_t *ptr;
++
++	   GetCurrentTB(buf);
++	   ptr = buf + 2;
++	   *ptr++ = (u_int32_t)SysBase->ThisTask->tc_ETask->PPCSPLower;
++	   *ptr = (u_int32_t)SysBase->ThisTask->tc_ETask->PPCSPUpper;
++	   /* The rest is random crap from stack */
++	   RAND_add(buf, sizeof(buf), ENTROPY_NEEDED/2);
++
++	   ptr = (u_int32_t *)buf;
++	   *ptr++ = SysBase->Elapsed;
++	   *ptr++ = (u_int32_t)SysBase->ThisTask->tc_ETask->Result2;
++	   *ptr++ = (u_int32_t)SysBase->ThisTask->tc_SPLower;
++	   *ptr++ = (u_int32_t)SysBase->ThisTask->tc_SPUpper;
++	   *ptr++ = AvailMem(0);
++	   *ptr++ = AvailMem(MEMF_LARGEST);
++	   *ptr++ = SysBase->IdleCount;
++	   *ptr = SysBase->DispCount;
++	   RAND_add(buf, sizeof(buf), ENTROPY_NEEDED/2);
++   }
++
++   bzero(buf, sizeof(buf));
++
++   for (i = 0; i < (sizeof(attrids) / sizeof(attrids[0])); i++)
++   {
++          UQUAD tmp = 0;
++          LONG bytes = NewGetSystemAttrsA(&tmp, sizeof(tmp), attrids[i], 0);
++          if (bytes > 2) RAND_add(((char *) &tmp) + 2, bytes - 2, 0.0);
++   }
++
++   return 1;
++}
+ # else                          /* !defined(__OpenBSD__) */
+ int RAND_poll(void)
+ {
+diff -ruN openssl-1.0.1f.orig/crypto/sha/asm/sha1-ppc.pl openssl-1.0.1f/crypto/sha/asm/sha1-ppc.pl
+--- openssl-1.0.1f.orig/crypto/sha/asm/sha1-ppc.pl	2014-01-06 14:47:42.000000000 +0100
++++ openssl-1.0.1f/crypto/sha/asm/sha1-ppc.pl	2014-01-08 22:11:06.000000000 +0100
+@@ -159,7 +159,7 @@
+ }
+ 
+ $code=<<___;
+-.machine	"any"
++.section        ".text"
+ .text
+ 
+ .globl	.sha1_block_data_order
+diff -ruN openssl-1.0.1f.orig/crypto/sha/asm/sha512-ppc.pl openssl-1.0.1f/crypto/sha/asm/sha512-ppc.pl
+--- openssl-1.0.1f.orig/crypto/sha/asm/sha512-ppc.pl	2014-01-06 14:47:42.000000000 +0100
++++ openssl-1.0.1f/crypto/sha/asm/sha512-ppc.pl	2014-01-08 22:11:06.000000000 +0100
+@@ -176,7 +176,7 @@
+ }
+ 
+ $code=<<___;
+-.machine	"any"
++.section        ".text"
+ .text
+ 
+ .globl	$func
+diff -ruN openssl-1.0.1f.orig/crypto/ui/ui_openssl.c openssl-1.0.1f/crypto/ui/ui_openssl.c
+--- openssl-1.0.1f.orig/crypto/ui/ui_openssl.c	2014-01-06 14:47:42.000000000 +0100
++++ openssl-1.0.1f/crypto/ui/ui_openssl.c	2014-01-08 22:11:06.000000000 +0100
+@@ -136,7 +136,7 @@
+ #include <string.h>
+ #include <errno.h>
+ 
+-#if !defined(OPENSSL_SYS_MSDOS) && !defined(OPENSSL_SYS_VMS)
++#if !defined(OPENSSL_SYS_MSDOS) && !defined(OPENSSL_SYS_VMS) && !defined(__MORPHOS__)
+ # ifdef OPENSSL_UNISTD
+ #  include OPENSSL_UNISTD
+ # else
+@@ -154,6 +154,11 @@
+ # endif
+ #endif
+ 
++#if defined(__MORPHOS__)
++#include <unistd.h>
++#undef TERMIOS
++#endif
++
+ #ifdef WIN16TTY
+ # undef OPENSSL_SYS_WIN16
+ # undef WIN16
+@@ -208,6 +213,13 @@
+ # endif
+ 
+ #endif
++
++#if defined(__MORPHOS__)
++# undef TERMIOS
++# undef TERMIO
++# undef SGTTY
++#endif
++
+ 
+ #ifdef TERMIOS
+ # include <termios.h>
+@@ -296,7 +305,7 @@
+ static long status;
+ static unsigned short channel = 0;
+ #else
+-# if !defined(OPENSSL_SYS_MSDOS) || defined(__DJGPP__)
++# if !defined(__MORPHOS__) && !defined(OPENSSL_SYS_MSDOS) || defined(__DJGPP__)
+ static TTY_STRUCT tty_orig, tty_new;
+ # endif
+ #endif
+@@ -396,7 +405,7 @@
+     return 1;
+ }
+ 
+-#if !defined(OPENSSL_SYS_WIN16) && !defined(OPENSSL_SYS_WINCE)
++#if !defined(OPENSSL_SYS_WIN16) && !defined(OPENSSL_SYS_WINCE) && !defined(__MORPHOS__)
+ /* Internal functions to read a string without echoing */
+ static int read_till_nl(FILE *in)
+ {
+@@ -419,7 +428,7 @@
+     int ok;
+     char result[BUFSIZ];
+     int maxsize = BUFSIZ - 1;
+-#if !defined(OPENSSL_SYS_WIN16) && !defined(OPENSSL_SYS_WINCE)
++#if !defined(OPENSSL_SYS_WIN16) && !defined(OPENSSL_SYS_WINCE) && !defined(__MORPHOS__)
+     char *p;
+ 
+     intr_signal = 0;
+@@ -585,7 +594,7 @@
+     return 1;
+ }
+ 
+-#if !defined(OPENSSL_SYS_WIN16) && !defined(OPENSSL_SYS_WINCE)
++#if !defined(OPENSSL_SYS_WIN16) && !defined(OPENSSL_SYS_WINCE) && !defined(__MORPHOS__)
+ /* Internal functions to handle signals and act on them */
+ static void pushsig(void)
+ {
+diff -ruN openssl-1.0.1f.orig/crypto/x509/x509_lu.c openssl-1.0.1f/crypto/x509/x509_lu.c
+--- openssl-1.0.1f.orig/crypto/x509/x509_lu.c	2014-01-06 14:47:42.000000000 +0100
++++ openssl-1.0.1f/crypto/x509/x509_lu.c	2014-01-08 22:11:06.000000000 +0100
+@@ -62,6 +62,10 @@
+ #include <openssl/x509.h>
+ #include <openssl/x509v3.h>
+ 
++#ifdef __MORPHOS__
++#undef shutdown
++#endif
++
+ X509_LOOKUP *X509_LOOKUP_new(X509_LOOKUP_METHOD *method)
+ {
+     X509_LOOKUP *ret;
+diff -ruN openssl-1.0.1f.orig/e_os.h openssl-1.0.1f/e_os.h
+--- openssl-1.0.1f.orig/e_os.h	2014-01-06 14:47:42.000000000 +0100
++++ openssl-1.0.1f/e_os.h	2014-01-08 22:11:06.000000000 +0100
+@@ -202,6 +202,14 @@
+ #   define readsocket(s,b,n)               recv((s),(b),(n),0)
+ #   define writesocket(s,b,n)              send((s),(b),(n),0)
+ #  endif
++#elif defined(__MORPHOS__) && defined(__libnix__)
++#  include <proto/socket.h>
++#  define get_last_socket_error()	   errno
++#  define clear_socket_error()   errno=0
++#  define ioctlsocket(a,b,c) IoctlSocket(a,b,c)
++#  define closesocket(s)	   CloseSocket(s)
++#  define readsocket(s,b,n)  recv((s),(b),(n),0)
++#  define writesocket(s,b,n) send((s),(b),(n),0)
+ # else
+ #  define get_last_socket_error() errno
+ #  define clear_socket_error()    errno=0
+@@ -609,10 +617,17 @@
+ #    endif
+ #   endif
+ 
++# if defined(__MORPHOS__) && defined(__libnix__)
++#   define SSLeay_Read(a,b,c)     recv((a),(b),(c),0)
++#   define SSLeay_Write(a,b,c)    send((a),(b),(c),0)
++#   define SHUTDOWN(fd)    { shutdown((fd),0); CloseSocket((fd)); }
++#   define SHUTDOWN2(fd)   { shutdown((fd),2); CloseSocket((fd)); }
++# else
+ #   define SSLeay_Read(a,b,c)     read((a),(b),(c))
+ #   define SSLeay_Write(a,b,c)    write((a),(b),(c))
+ #   define SHUTDOWN(fd)    { shutdown((fd),0); closesocket((fd)); }
+ #   define SHUTDOWN2(fd)   { shutdown((fd),2); closesocket((fd)); }
++# endif
+ #   ifndef INVALID_SOCKET
+ #    define INVALID_SOCKET      (-1)
+ #   endif                       /* INVALID_SOCKET */
+diff -ruN openssl-1.0.1i.orig/Makefile openssl-1.0.1i/Makefile
+--- openssl-1.0.1i.orig/Makefile	2014-08-07 00:18:45.000000000 +0300
++++ openssl-1.0.1i/Makefile	2014-08-07 19:14:15.657872469 +0300
+@@ -12,7 +12,7 @@
+ SHLIB_MAJOR=1
+ SHLIB_MINOR=0.0
+ SHLIB_EXT=
+-PLATFORM=dist
++PLATFORM=linux-ppc
+ OPTIONS= no-ec_nistp_64_gcc_128 no-gmp no-jpake no-krb5 no-md2 no-rc5 no-rfc3779 no-sctp no-shared no-store no-unit-test no-zlib no-zlib-dynamic static-engine
+ CONFIGURE_ARGS=dist
+ SHLIB_TARGET=
+@@ -26,10 +26,10 @@
+ # for, say, /usr/ and yet have everything installed to /tmp/somedir/usr/.
+ # Normally it is left empty.
+ INSTALL_PREFIX=
+-INSTALLTOP=/usr/local/ssl
++INSTALLTOP=/gg
+ 
+ # Do not edit this manually. Use Configure --openssldir=DIR do change this!
+-OPENSSLDIR=/usr/local/ssl
++OPENSSLDIR=/gg/ssl
+ 
+ # NO_IDEA - Define to build without the IDEA algorithm
+ # NO_RC4  - Define to build without the RC4 algorithm
+@@ -59,15 +59,15 @@
+ # equal 4.
+ # PKCS1_CHECK - pkcs1 tests.
+ 
+-CC= cc
+-CFLAG= -O
++CC= ppc-morphos-gcc
++CFLAG= -DZLIB -DB_ENDIAN -DTERMIOS -O3 -mcpu=750 -fomit-frame-pointer -mfused-madd -ffast-math -Wall -noixemul -D__MORPHOS_SHAREDLIBS -D_NO_PPCINLINE
+ DEPFLAG= -DOPENSSL_NO_EC_NISTP_64_GCC_128 -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_MD2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_RFC3779 -DOPENSSL_NO_SCTP -DOPENSSL_NO_STORE -DOPENSSL_NO_UNIT_TEST
+ PEX_LIBS= 
+ EX_LIBS= 
+ EXE_EXT= 
+ ARFLAGS= 
+ AR= ar $(ARFLAGS) r
+-RANLIB= /usr/bin/ranlib
++RANLIB= /gg/bin/ppc-morphos-ranlib
+ NM= nm
+ PERL= /usr/bin/perl
+ TAR= tar
